@@ -4,7 +4,7 @@
   {$DEFINE RECORD_METHODS}
   {$DEFINE PBYTE}
   {$DEFINE UITYPES}
-  {$DEFINE NESTED_TYPES}      
+  {$DEFINE NESTED_TYPES}
   {$IFNDEF DEBUG}
     {$DEFINE INLINE}
   {$ENDIF}
@@ -23,11 +23,11 @@
     {$DEFINE NESTED_TYPES}               //Delphi 2005 - added nested types & nested constants
     {$IF COMPILERVERSION >= 18}
       {$DEFINE ABSTRACT_CLASSES}         //Delphi 2006 - added abstract classes
-      {$DEFINE RECORD_METHODS}           //Delphi 2006 - added records with methods
       {$DEFINE REPORTMEMORYLEAKS}        //Delphi 2006 - added ReportMemoryLeaksOnShutdown
       {$WARN SYMBOL_PLATFORM OFF}
       {$DEFINE SETSIZE}                  //Delphi 2006 - added TBitmap.SetSize
       {$IF COMPILERVERSION >= 18.5}
+        {$DEFINE RECORD_METHODS}         //Delphi 2007 - added records with methods
         {$DEFINE DELPHI_PNG}             //Delphi 2007 - added PNG support
         {$DEFINE DELPHI_GIF}             //Delphi 2007 - added GIF support
         {$DEFINE MAINFORMONTASKBAR}      //Delphi 2007 - added TApplication.MainFormOnTaskbar
@@ -39,9 +39,10 @@
           {$IF COMPILERVERSION >= 21}
             {$DEFINE GESTURES}           //Delphi 2010 - added screen gesture support
             {$IF COMPILERVERSION >= 23}
-			  {$IF declared(FireMonkeyVersion)} //defined in FMX.Types
-			    {$DEFINE FMX}
-              {$IFEND}			  
+              {$IF declared(FireMonkeyVersion)} //defined in FMX.Types
+                {$DEFINE FMX}
+              {$IFEND}        
+              {$DEFINE FORMATSETTINGS}
               {$DEFINE TROUNDINGMODE}   
               {$DEFINE UITYPES}          //DelphiXE2   - added UITypes unit
               {$DEFINE XPLAT_GENERICS}   //DelphiXE2   - reasonable cross-platform & generics support

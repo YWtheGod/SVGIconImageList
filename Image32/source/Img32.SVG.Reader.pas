@@ -2,10 +2,10 @@ unit Img32.SVG.Reader;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  3.4                                                             *
-* Date      :  2 October 2021                                                  *
+* Version   :  4.0                                                             *
+* Date      :  10 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2019-2021                                         *
+* Copyright :  Angus Johnson 2019-2022                                         *
 *                                                                              *
 * Purpose   :  Read SVG 2.0 files                                              *
 *                                                                              *
@@ -118,7 +118,7 @@ type
     fRadGradRenderer  : TSvgRadialGradientRenderer;
     fImgRenderer      : TImageRenderer;
     fRootElement      : TSvgRootElement;
-    fFontCache        : TGlyphCache;
+    fFontCache        : TFontCache;
     fUsePropScale     : Boolean;
     function  LoadInternal: Boolean;
     function  GetIsEmpty: Boolean;
@@ -629,17 +629,33 @@ begin
       thisElement.fReader.currentColor := currentColor;
     drawDat.fillRule := fillRule;
     if (fillColor = clCurrent) then
+      {$IF Defined(MACOS) or Defined(MACOSX)}
+      drawDat.fillColor := SwapRedBlue(thisElement.fReader.currentColor)
+      {$ELSE}
       drawDat.fillColor := thisElement.fReader.currentColor
+      {$IFEND}
     else if (fillColor <> clInvalid) then
+      {$IF Defined(MACOS) or Defined(MACOSX)}
+      drawDat.fillColor := SwapRedBlue(fillColor);
+      {$ELSE}
       drawDat.fillColor := fillColor;
+      {$IFEND}
     if fillOpacity <> InvalidD then
       drawDat.fillOpacity := fillOpacity;
     if (fillEl <> '') then
       drawDat.fillEl := fillEl;
     if (strokeColor = clCurrent) then
+      {$IF Defined(MACOS) or Defined(MACOSX)}
+      drawDat.strokeColor := SwapRedBlue(thisElement.fReader.currentColor)
+      {$ELSE}
       drawDat.strokeColor := thisElement.fReader.currentColor
+      {$IFEND}
     else if strokeColor <> clInvalid then
+      {$IF Defined(MACOS) or Defined(MACOSX)}
+      drawDat.strokeColor := SwapRedBlue(strokeColor);
+      {$ELSE}
       drawDat.strokeColor := strokeColor;
+      {$IFEND}
     if strokeOpacity <> InvalidD then
       drawDat.strokeOpacity := strokeOpacity;
     if strokeWidth.IsValid then
@@ -993,14 +1009,20 @@ begin
         if self.elRectWH.width.IsValid and
           self.elRectWH.height.IsValid then
         begin
-          //scale <symbol> proportionally to fill the <use> element
-          scale2.cx := self.elRectWH.width.rawVal / viewboxWH.Width;
-          scale2.cy := self.elRectWH.height.rawVal / viewboxWH.Height;
-          if scale2.cy < scale2.cx then s := scale2.cy else s := scale2.cx;
+          with viewboxWH do
+          begin
+            dx := -Left/Width * self.elRectWH.width.rawVal;
+            dy := -Top/Height * self.elRectWH.height.rawVal;
 
-          //again, scale without translating
+            //scale <symbol> proportionally to fill the <use> element
+            scale2.cx := self.elRectWH.width.rawVal / Width;
+            scale2.cy := self.elRectWH.height.rawVal / Height;
+            if scale2.cy < scale2.cx then s := scale2.cy else s := scale2.cx;
+          end;
+
           mat := IdentityMatrix;
           MatrixScale(mat, s, s);
+          MatrixTranslate(mat, dx, dy);
           drawDat.matrix := MatrixMultiply(drawDat.matrix, mat);
 
           //now center after scaling
@@ -1840,7 +1862,7 @@ begin
   with Point(off) do Types.OffsetRect(dstOffRec, X, Y);
   dstImg.Copy(srcImg, srcRec, dstOffRec);
   dstImg.SetRGB(floodColor);
-  alpha := floodColor shr 24;
+  alpha := GetAlpha(floodColor);
   if (alpha > 0) and (alpha < 255) then
     dstImg.ReduceOpacity(alpha);
   if stdDev > 0 then
@@ -2870,7 +2892,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function FixSpaces(const text: string): string;
+function FixSpaces(const text: UnicodeString): UnicodeString;
 var
   i,j, len: integer;
 begin
@@ -2905,7 +2927,7 @@ procedure TSubtextElement.GetPaths(const drawDat: TDrawData);
 var
   el : TSvgElement;
   topTextEl : TTextElement;
-  s: string;
+  s: UnicodeString;
   tmpX, offsetX, scale, fontSize, bs: double;
   mat: TMatrixD;
 begin
@@ -2934,11 +2956,11 @@ begin
   {$ENDIF}
   s := FixSpaces(s);
 
-  drawPathsC := fReader.fFontCache.GetTextGlyphs(0, 0, s, tmpX);
+  drawPathsC := fReader.fFontCache.GetTextOutline(0, 0, s, tmpX);
   //by not changing the fontCache.FontHeight, the quality of
   //small font render improves very significantly (though of course
   //this requires additional glyph scaling and offsetting).
-  scale := fontSize /fReader.fFontCache.FontHeight;
+  scale := fontSize / fReader.fFontCache.FontHeight;
 
   with topTextEl.currentPt do
   begin
@@ -2981,7 +3003,7 @@ var
   parentTextEl, topTextEl: TTextElement;
   el: TSvgElement;
   isFirst: Boolean;
-  s: string;
+  s: UnicodeString;
   i, len, charsThatFit: integer;
   d, fontScale, spacing: double;
   utf8: UTF8String;
@@ -3033,7 +3055,7 @@ begin
   {$IFDEF UNICODE}
   s := UTF8ToUnicodeString(HtmlDecode(utf8));
   {$ELSE}
-  s := Utf8Decode(HtmlDecode(utf8));
+  s := UnicodeString(Utf8Decode(HtmlDecode(utf8)));
   {$ENDIF}
   for i := 1 to Length(s) do
     if s[i] < #32 then s[i] := #32;
@@ -3070,7 +3092,7 @@ begin
       //static fontheight. The returned glyphs will be de-scaled later.
       MatrixApply(mat, tmpPath);
       AppendPath(self.drawPathsC,
-        GetTextGlyphsOnPath(s, tmpPath, fReader.fFontCache,
+        GetTextOutlineOnPath(s, tmpPath, fReader.fFontCache,
           taLeft, 0, spacing, charsThatFit));
       if charsThatFit = Length(s) then Break;
       Delete(s, 1, charsThatFit);
@@ -4687,7 +4709,7 @@ begin
 
   if Assigned(fFontCache) then
     fFontCache.FontReader := bestFontReader else
-    fFontCache := TGlyphCache.Create(bestFontReader, defaultFontHeight);
+    fFontCache := TFontCache.Create(bestFontReader, defaultFontHeight);
 
   fFontCache.Underlined := False;
   fFontCache.StrikeOut := False;
@@ -4708,7 +4730,6 @@ function TSvgReader.GetIsEmpty: Boolean;
 begin
   Result := not Assigned(fRootElement);
 end;
-
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 

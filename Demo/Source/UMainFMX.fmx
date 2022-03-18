@@ -4,7 +4,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
   Caption = 
     'SVGIcon ImageList Demo - Copyright (c) Ethea S.r.l. - Apache 2.0' +
     ' Open Source License'
-  ClientHeight = 564
+  ClientHeight = 532
   ClientWidth = 356
   StyleBook = StyleBook1
   FormFactor.Width = 320
@@ -14,16 +14,16 @@ object SVGIconImageListForm: TSVGIconImageListForm
   DesignerMasterStyle = 0
   object Panel1: TPanel
     Align = Bottom
-    Position.Y = 376.000000000000000000
+    Position.Y = 344.000000000000000000
     Size.Width = 356.000000000000000000
     Size.Height = 152.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 1
     object NextButton: TButton
       Position.X = 8.000000000000000000
-      Position.Y = 48.000000000000000000
-      Size.Width = 153.000000000000000000
-      Size.Height = 33.000000000000000000
+      Position.Y = 41.000000000000000000
+      Size.Width = 150.000000000000000000
+      Size.Height = 30.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 2
       Text = 'Next Image...'
@@ -31,7 +31,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
     end
     object IconsLabel: TLabel
       Position.X = 10.000000000000000000
-      Position.Y = 95.000000000000000000
+      Position.Y = 114.000000000000000000
       Size.Width = 327.000000000000000000
       Size.Height = 17.000000000000000000
       Size.PlatformDefault = False
@@ -40,7 +40,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
     end
     object CurrentLabel: TLabel
       Position.X = 10.000000000000000000
-      Position.Y = 116.000000000000000000
+      Position.Y = 132.000000000000000000
       Size.Width = 327.000000000000000000
       Size.Height = 17.000000000000000000
       Size.PlatformDefault = False
@@ -50,18 +50,18 @@ object SVGIconImageListForm: TSVGIconImageListForm
     object PrevButton: TButton
       Position.X = 8.000000000000000000
       Position.Y = 8.000000000000000000
-      Size.Width = 153.000000000000000000
-      Size.Height = 33.000000000000000000
+      Size.Width = 150.000000000000000000
+      Size.Height = 30.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 0
       Text = 'Prev.Image...'
       OnClick = PrevButtonClick
     end
     object ShowEditorButton: TButton
-      Position.X = 416.000000000000000000
-      Position.Y = 8.000000000000000000
-      Size.Width = 89.000000000000000000
-      Size.Height = 33.000000000000000000
+      Position.X = 8.000000000000000000
+      Position.Y = 75.000000000000000000
+      Size.Width = 150.000000000000000000
+      Size.Height = 30.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 1
       Text = 'Show Editor...'
@@ -107,7 +107,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
     Align = Left
     Position.Y = 113.000000000000000000
     Size.Width = 161.000000000000000000
-    Size.Height = 263.000000000000000000
+    Size.Height = 231.000000000000000000
     Size.PlatformDefault = False
     TabOrder = 5
     DisableFocusEffect = True
@@ -118,7 +118,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
     DefaultItemStyles.GroupHeaderStyle = ''
     DefaultItemStyles.GroupFooterStyle = ''
     Viewport.Width = 157.000000000000000000
-    Viewport.Height = 259.000000000000000000
+    Viewport.Height = 227.000000000000000000
     object ListBoxItem1: TListBoxItem
       AutoTranslate = False
       ImageIndex = 0
@@ -182,14 +182,14 @@ object SVGIconImageListForm: TSVGIconImageListForm
   object Glyph: TGlyph
     Align = Client
     Size.Width = 195.000000000000000000
-    Size.Height = 263.000000000000000000
+    Size.Height = 231.000000000000000000
     Size.PlatformDefault = False
     ImageIndex = 4
     Images = SVGIconImageList
   end
   object Panel2: TPanel
     Align = Bottom
-    Position.Y = 528.000000000000000000
+    Position.Y = 496.000000000000000000
     Size.Width = 356.000000000000000000
     Size.Height = 36.000000000000000000
     Size.PlatformDefault = False
@@ -203,7 +203,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
       Margins.Bottom = 2.000000000000000000
       Position.X = 2.000000000000000000
       Position.Y = 2.000000000000000000
-      Size.Width = 69.794998168945320000
+      Size.Width = 69.794998168945310000
       Size.Height = 32.000000000000000000
       Size.PlatformDefault = False
       TabOrder = 14
@@ -230,7 +230,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
       Margins.Top = 2.000000000000000000
       Margins.Right = 2.000000000000000000
       Margins.Bottom = 2.000000000000000000
-      Position.X = 75.794998168945320000
+      Position.X = 75.794998168945310000
       Position.Y = 2.000000000000000000
       Size.Width = 95.000000000000000000
       Size.Height = 32.000000000000000000
@@ -246,7 +246,7 @@ object SVGIconImageListForm: TSVGIconImageListForm
       Margins.Bottom = 2.000000000000000000
       Position.X = 182.000015258789100000
       Position.Y = 2.000000000000000000
-      Size.Width = 97.999984741210930000
+      Size.Width = 97.999984741210940000
       Size.Height = 32.000000000000000000
       Size.PlatformDefault = False
       TextSettings.HorzAlign = Trailing

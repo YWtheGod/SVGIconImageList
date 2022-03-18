@@ -78,7 +78,7 @@
         <DCC_CBuilderOutput>All</DCC_CBuilderOutput>
         <SanitizedProjectName>dclSVGIconImageListFMX</SanitizedProjectName>
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
-        <DllSuffix>_D10_4</DllSuffix>
+        <DllSuffix>$(Auto)</DllSuffix>
         <DCC_Description>Ethea SVGIconImageList  FMX components</DCC_Description>
         <DesignOnlyPackage>true</DesignOnlyPackage>
         <VerInfo_Locale>1033</VerInfo_Locale>
@@ -146,6 +146,10 @@
         <DCCReference Include="..\FMX.SVGIconImageListEditorUnit.pas">
             <Form>SVGIconImageListEditorFMX</Form>
         </DCCReference>
+        <DCCReference Include="..\FMX.SVGTextPropertyEditorUnit.pas">
+            <Form>SVGTextPropertyEditorFormFMX</Form>
+            <FormType>fmx</FormType>
+        </DCCReference>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
@@ -193,7 +197,7 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="C:\Users\Public\Documents\Embarcadero\Studio\21.0\Bpl\dclSVGIconImageListFMX_D10_3.bpl" Configuration="Release" Class="ProjectOutput">
+                <DeployFile LocalName="C:\Users\Public\Documents\Embarcadero\Studio\21.0\Bpl\dclSVGIconImageListFMX_D10_4.bpl" Configuration="Release" Class="ProjectOutput">
                     <Platform Name="Win32">
                         <RemoteName>dclSVGIconImageListFMX.bpl</RemoteName>
                         <Overwrite>true</Overwrite>

@@ -2,10 +2,10 @@ unit Img32.FMX;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  3.3                                                             *
-* Date      :  21 September 2021                                               *
+* Version   :  4.0                                                             *
+* Date      :  10 January 2022                                                 *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2019-2021                                         *
+* Copyright :  Angus Johnson 2019-2022                                         *
 * Purpose   :  Image file format support for TImage32 and FMX                  *
 * License   :  http://www.boost.org/LICENSE_1_0.txt                            *
 *******************************************************************************)
@@ -13,10 +13,11 @@ unit Img32.FMX;
 interface
 
 {$I Img32.inc}
+
 uses
-  SysUtils, Classes, Math, Img32, System.Rtti,
+  SysUtils, Classes, Math, System.Rtti,
   System.Generics.Collections, System.Generics.Defaults,
-  FMX.Platform, FMX.Types, FMX.Surfaces, FMX.Graphics;
+  FMX.Platform, FMX.Types, FMX.Surfaces, FMX.Graphics, Img32;
 
 type
   TImageFormat_FMX = class(TImageFormat)
@@ -198,7 +199,7 @@ var
   src, dst: TBitmapData; //TBitmapData is a record.
 begin
   if not Assigned(img) or not Assigned(bmp) then Exit;
-  src := TBitMapData.Create(img.Width, img.Height, TPixelFormat.BGRA);
+  src := TBitmapData.Create(img.Width, img.Height, TPixelFormat.BGRA);
   src.Data := img.PixelBase;
   src.Pitch := img.Width * 4;
   bmp.SetSize(img.Width, img.Height);

@@ -82,7 +82,6 @@ object MainForm: TMainForm
     Caption = 'ToolBar1'
     Images = SVGIconImageList1
     TabOrder = 1
-    ExplicitWidth = 502
     object ToolButton1: TToolButton
       Left = 0
       Top = 0

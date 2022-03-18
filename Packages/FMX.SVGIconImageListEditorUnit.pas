@@ -83,6 +83,7 @@ type
     ImageView: TListBox;
     BottomSplitter: TSplitter;
     ApplyToRootOnlyCheckBox: TCheckBox;
+    ReformatXMLButton: TButton;
     procedure ClearAllButtonClick(Sender: TObject);
     procedure DeleteButtonClick(Sender: TObject);
     procedure AddButtonClick(Sender: TObject);
@@ -112,6 +113,7 @@ type
       const Point: TPointF);
     procedure ZoomChange(Sender: TObject);
     procedure ApplyToRootOnlyCheckBoxChange(Sender: TObject);
+    procedure ReformatXMLButtonClick(Sender: TObject);
   private
     FIconIndexLabel: string;
     FTotIconsLabel: string;
@@ -138,6 +140,7 @@ uses
   Winapi.Messages
   , Winapi.Windows
   , Winapi.shellApi
+  , Xml.XMLDoc
   , System.Math
   , Img32.SVG.Core;
 
@@ -485,6 +488,11 @@ procedure TSVGIconImageListEditorFMX.OpacitySpinBoxChange(Sender: TObject);
 begin
   if FUpdating then Exit;
   SetImageOpacity(OpacitySpinBox.Value);
+end;
+
+procedure TSVGIconImageListEditorFMX.ReformatXMLButtonClick(Sender: TObject);
+begin
+  SVGText.Lines.Text := Xml.XMLDoc.FormatXMLData(SVGText.Lines.Text);
 end;
 
 procedure TSVGIconImageListEditorFMX.DefaultOpacitySpinBoxChange(
