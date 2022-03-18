@@ -2,10 +2,10 @@ unit Img32.SVG.PathDesign;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  4.0                                                             *
-* Date      :  10 January 2022                                                 *
+* Version   :  3.4                                                             *
+* Date      :  25 October 2021                                                 *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2019-2022                                         *
+* Copyright :  Angus Johnson 2019-2021                                         *
 *                                                                              *
 * Purpose   :  Supports designing SVG paths                                    *
 *                                                                              *
@@ -36,14 +36,14 @@ type
   protected
     function  GetPrevSegLayer: TPathSegLayer;
     function  GetNextSegLayer: TPathSegLayer;
-    function  GetDesignerLayer(btnLayer: TLayer32): TLayer32;
-    procedure DrawDesigner(designer: TLayer32); virtual;
+    function  GetDesignerLayer(btnLayer: TLayer32): TDesignerLayer32;
+    procedure DrawDesigner(designer: TDesignerLayer32); virtual;
     procedure SetFocus(value: Boolean);
     procedure SetBtnCtrlPts(const pts: TPathD); virtual;
     procedure BtnMoveCheck(const pos: TPointD); virtual;
     property  Owner: TSvgPathLayer read fOwner;
   public
-    constructor Create(parent: TLayer32 = nil; const name: string = ''); override;
+    constructor Create(parent: TLayer32;  const name: string = ''); override;
     procedure Init(seg: TSvgPathSeg); virtual;
     function  CreateBtnGroup: TButtonGroupLayer32; virtual;
     procedure UpdateBtnGroup(movedBtn: TLayer32); virtual;
@@ -66,9 +66,9 @@ type
     function GetPointFromHorzBtn(btn: TLayer32): TPointD;
     function GetPointFromVertBtn(btn: TLayer32): TPointD;
   protected
-    procedure DrawDesigner(designer: TLayer32); override;
+    procedure DrawDesigner(designer: TDesignerLayer32); override;
   public
-    constructor Create(parent: TLayer32 = nil; const name: string = ''); override;
+    constructor Create(parent: TLayer32;  const name: string = ''); override;
     procedure Init(seg: TSvgPathSeg); override;
     function CreateBtnGroup: TButtonGroupLayer32; override;
     function TestUpdateBtnGroup(movedBtn: TLayer32;
@@ -85,7 +85,7 @@ type
 
   TSvgCSegLayer = class(TPathSegLayer)
   protected
-    procedure DrawDesigner(designer: TLayer32); override;
+    procedure DrawDesigner(designer: TDesignerLayer32); override;
   public
     function CreateBtnGroup: TButtonGroupLayer32; override;
   end;
@@ -102,7 +102,7 @@ type
   TSvgQSegLayer = class(TPathSegLayer)
   public
     function CreateBtnGroup: TButtonGroupLayer32; override;
-    procedure DrawDesigner(designer: TLayer32); override;
+    procedure DrawDesigner(designer: TDesignerLayer32); override;
   end;
 
   TSvgSSegLayer = class(TPathSegLayer)
@@ -110,7 +110,7 @@ type
     procedure BtnMoveCheck(const pos: TPointD); override;
   public
     function CreateBtnGroup: TButtonGroupLayer32; override;
-    procedure DrawDesigner(designer: TLayer32); override;
+    procedure DrawDesigner(designer: TDesignerLayer32); override;
   end;
 
   TSvgTSegLayer = class(TPathSegLayer)
@@ -146,9 +146,9 @@ type
     property Owner : TSvgPathLayer read fOwner;
   public
     procedure Init(subPath: TSvgSubPath); virtual;
-    procedure Offset(dx, dy: double); override;
+    procedure Offset(dx, dy: integer); override;
     function GetLastSegLayer: TPathSegLayer;
-    function GetStringDef(getAsRelative: Boolean; decimalPrec: integer): string;
+    function GetStringDef(decimalPrec: integer): string;
     property SubPath: TSvgSubPath read fSubPath;
     property SegLayer[index: integer]: TPathSegLayer read GetSegLayer;
   end;
@@ -167,7 +167,7 @@ type
     property StrokeColor  : TColor32 read fStrokeColor;
     property StrokeColor2 : TColor32 read fStrokeColor2;
   public
-    constructor Create(parent: TLayer32 = nil; const name: string = ''); override;
+    constructor Create(parent: TLayer32;  const name: string = ''); override;
     destructor Destroy; override;
     procedure LoadPath(const dpath: string; const destRect: TRect; scale: double = 0);
     procedure LoadPathsFromFile(const filename: string;
@@ -198,11 +198,11 @@ const
 // TPathSegLayer
 //------------------------------------------------------------------------------
 
-constructor TPathSegLayer.Create(parent: TLayer32; const name: string);
+constructor TPathSegLayer.Create(parent: TLayer32;  const name: string = '');
 begin
-  inherited Create(parent, name);
+  inherited;
   fOwner := Parent.Parent as TSvgPathLayer;
-  OuterMargin := Max(fOwner.Margin, Ceil(DefaultButtonSize /2));
+  Margin := Max(fOwner.Margin, Ceil(DefaultButtonSize /2));
 end;
 //------------------------------------------------------------------------------
 
@@ -222,13 +222,13 @@ begin
   if not Assigned(Paths) or not Assigned(Paths[0]) then Exit;
   Image.Clear; //Image.Clear($10FF0000); //debugging :)
   if Focused then c := Owner.fStrokeColor2 else c := Owner.fStrokeColor;
-  p := OffsetPath(Paths[0], -Left+OuterMargin, -Top+OuterMargin);
+  p := OffsetPath(Paths[0], -Left, -Top);
   DrawLine(Image, p, Owner.StrokeWidth, c, esRound);
 
   //UpdateHitTestMaskFromImage;
   //draw a wider stroke to define the HT region
-  HitTest.htImage.SetSize(Image.Width, Image.Height);
-  DrawLine(HitTest.htImage, p, Owner.StrokeWidth*2, clBlack32, esRound);
+  HitTestRec.htImage.SetSize(Image.Width, Image.Height);
+  DrawLine(HitTestRec.htImage, p, Owner.StrokeWidth*2, clBlack32, esRound);
 end;
 //------------------------------------------------------------------------------
 
@@ -261,18 +261,18 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function TPathSegLayer.GetDesignerLayer(btnLayer: TLayer32): TLayer32;
+function TPathSegLayer.GetDesignerLayer(btnLayer: TLayer32): TDesignerLayer32;
 begin
   if Assigned(btnLayer) and
     (btnLayer.Parent is TButtonGroupLayer32) and
-    (btnLayer.Parent[0] is TLayer32) then
-      Result := TLayer32(btnLayer.Parent[0])
+    (btnLayer.Parent[0] is TDesignerLayer32) then
+      Result := TDesignerLayer32(btnLayer.Parent[0])
   else
     Result := nil;
 end;
 //------------------------------------------------------------------------------
 
-procedure TPathSegLayer.DrawDesigner(designer: TLayer32);
+procedure TPathSegLayer.DrawDesigner(designer: TDesignerLayer32);
 begin
 end;
 //------------------------------------------------------------------------------
@@ -287,13 +287,13 @@ end;
 
 function TPathSegLayer.CreateBtnGroup: TButtonGroupLayer32;
 var
-  designer: TLayer32;
+  designer: TDesignerLayer32;
 begin
   Result := CreateButtonGroup(Root,
     fSeg.ctrlPts, bsRound, DefaultButtonSize, clRed32);
 
   //insert the designer layer **below** the button layers
-  designer := Result.InsertChild(TLayer32, 0) as TLayer32;
+  designer := Result.InsertChild(TDesignerLayer32, 0) as TDesignerLayer32;
   DrawDesigner(designer);
 end;
 //------------------------------------------------------------------------------
@@ -326,7 +326,7 @@ procedure TPathSegLayer.UpdateBtnGroup(movedBtn: TLayer32);
 var
   i         : integer;
   pts       : TPathD;
-  designer  : TLayer32;
+  designer  : TDesignerLayer32;
   segLayer  : TPathSegLayer;
 begin
   designer := GetDesignerLayer(movedBtn);
@@ -384,9 +384,9 @@ end;
 // TSvgASegLayer
 //------------------------------------------------------------------------------
 
-constructor TSvgASegLayer.Create(parent: TLayer32 = nil; const name: string = '');
+constructor TSvgASegLayer.Create(parent: TLayer32;  const name: string = '');
 begin
-  inherited Create(parent, name);
+  inherited;
   fRectMargin := 20;
 end;
 //------------------------------------------------------------------------------
@@ -404,7 +404,7 @@ begin
   TSvgASegment(fSeg).ReverseArc;
   Paths := Img32.Vector.Paths(fSeg.FlatPath);
   DrawPath;
-  Invalidate;
+  Invalidate(Bounds);
 end;
 //------------------------------------------------------------------------------
 
@@ -473,7 +473,7 @@ end;
 function TSvgASegLayer.CreateBtnGroup: TButtonGroupLayer32;
 var
   i: integer;
-  designer: TLayer32;
+  designer: TDesignerLayer32;
 begin
   Result := CreateButtonGroup(Root, fSeg.ctrlPts,
     bsRound, DefaultButtonSize, clRed32);
@@ -494,7 +494,7 @@ begin
     end;
 
   //insert the designer layer below the button layers (ie level 0)
-  designer := Result.InsertChild(TLayer32, 0) as TLayer32;
+  designer := Result.InsertChild(TDesignerLayer32, 0) as TDesignerLayer32;
   DrawDesigner(designer);
 end;
 //------------------------------------------------------------------------------
@@ -572,7 +572,7 @@ var
   sa,ea, a  : double;
   dx,dy     : double;
   mp, sp    : TPointD;
-  designer  : TLayer32;
+  designer  : TDesignerLayer32;
   segLayer  : TPathSegLayer;
   ai        : TArcInfo;
 begin
@@ -767,7 +767,7 @@ begin
     Paths := Img32.Vector.Paths(fSeg.FlatPath);
     DrawPath;
   end;
-  Invalidate;
+  Invalidate(Bounds);
 
   //move the following segments
   segLayer := GetNextSegLayer;
@@ -777,7 +777,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure TSvgASegLayer.DrawDesigner(designer: TLayer32);
+procedure TSvgASegLayer.DrawDesigner(designer: TDesignerLayer32);
 var
   j: integer;
   r,r2: TRectD;
@@ -797,7 +797,7 @@ begin
     r2 := Img32.Vector.GetBoundsD(p2);
     r := UnionRect(r, r2);
     InflateRect(r, dpiAware1, dpiAware1); //ie pen width
-    designer.SetInnerBounds(r);
+    designer.SetBounds(Rect(r));
     p := OffsetPath(p, -designer.Left, -designer.Top);
 
     SetLength(dashes, 2);
@@ -840,7 +840,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure TSvgCSegLayer.DrawDesigner(designer: TLayer32);
+procedure TSvgCSegLayer.DrawDesigner(designer: TDesignerLayer32);
 var
   i,j: integer;
   pt: TPointD;
@@ -853,7 +853,7 @@ begin
   SetLength(p, 2);
   with fSeg do
   begin
-    designer.SetInnerBounds(GetCtrlBounds);
+    designer.SetBounds(Rect(GetCtrlBounds));
     pt := FirstPt;
     for i := 0 to Length(ctrlPts) div 3 -1 do
     begin
@@ -903,7 +903,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure TSvgQSegLayer.DrawDesigner(designer: TLayer32);
+procedure TSvgQSegLayer.DrawDesigner(designer: TDesignerLayer32);
 var
   i,j: integer;
   p: TPathD;
@@ -916,7 +916,7 @@ begin
   SetLength(p, 2);
   with fSeg do
   begin
-    designer.SetInnerBounds(GetCtrlBounds);
+    designer.SetBounds(Rect(GetCtrlBounds));
     pt := FirstPt;
     for i := 0 to High(ctrlPts) div 2 do
     begin
@@ -955,7 +955,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure TSvgSSegLayer.DrawDesigner(designer: TLayer32);
+procedure TSvgSSegLayer.DrawDesigner(designer: TDesignerLayer32);
 var
   i,j: integer;
   p: TPathD;
@@ -967,7 +967,7 @@ begin
   SetLength(p, 2);
   with fSeg do
   begin
-    designer.SetInnerBounds(GetCtrlBounds);
+    designer.SetBounds(Rect(GetCtrlBounds));
     for i := 0 to High(ctrlPts) div 2 do
     begin
       p[0] := ctrlPts[i*2];
@@ -1057,7 +1057,7 @@ begin
     Paths[0], bsRound, DefaultButtonSize, clRed32);
   TButtonDesignerLayer32(Result[0]).Visible := false;
   TButtonDesignerLayer32(Result[1]).Visible := false;
-  Result.InsertChild(TLayer32, 0);
+  Result.InsertChild(TDesignerLayer32, 0);
 end;
 //------------------------------------------------------------------------------
 
@@ -1111,7 +1111,6 @@ var
 begin
   fOwner    := Parent as TSvgPathLayer;
   fSubPath  := subPath;
-  seg := nil;
   for i := 0 to subPath.Count -1 do
   begin
     case subPath[i].segType of
@@ -1131,7 +1130,7 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-procedure  TSubPathLayer.Offset(dx, dy: double);
+procedure  TSubPathLayer.Offset(dx, dy: integer);
 begin
   inherited;
   //moving a segment must also involve the whole path
@@ -1139,9 +1138,9 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function TSubPathLayer.GetStringDef(getAsRelative: Boolean; decimalPrec: integer): string;
+function TSubPathLayer.GetStringDef(decimalPrec: integer): string;
 begin
-  Result := fSubPath.GetStringDef(getAsRelative, decimalPrec);
+  Result := fSubPath.GetStringDef(true, decimalPrec);
 end;
 //------------------------------------------------------------------------------
 
@@ -1166,9 +1165,9 @@ end;
 // TSvgPathLayer
 //------------------------------------------------------------------------------
 
-constructor TSvgPathLayer.Create(parent: TLayer32 = nil; const name: string = '');
+constructor TSvgPathLayer.Create(parent: TLayer32;  const name: string = '');
 begin
-  inherited Create(parent, name);
+  inherited;
   fSvgPath := TSvgPath.Create;
   fStrokeWidth  := DPIAware(5);
   fStrokeColor  := clBlack32;
@@ -1245,7 +1244,7 @@ var
         end;
     end;
     for i := 0 to el.childs.Count -1 do
-      ParseTree(TSvgTreeEl(el.childs[i]));
+      ParseTree(el.childs[i]);
   end;
 
 var

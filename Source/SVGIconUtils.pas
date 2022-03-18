@@ -3,7 +3,7 @@
 {       Icon SVG ImageList: An extended ImageList for Delphi/VCL               }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -55,6 +55,9 @@ function UpdateSVGIconListViewCaptions(const AListView: TListView;
 procedure SVGExportToPng(const AWidth, AHeight: Integer;
   FSVG: ISVG; const AOutFolder: string;
   const AFileName: string = '');
+{$IFDEF IgnoreAntiAliasedColor}
+procedure MakeTransparent(DC: THandle);
+{$ENDIF}
 function PNG4TransparentBitMap(aBitmap: TBitmap): TPNGImage;
 
 implementation

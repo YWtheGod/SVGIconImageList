@@ -3,7 +3,7 @@
 {       SVGIconImageList: An extended ImageList for Delphi/FMX                 }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {                                                                              }
@@ -117,9 +117,9 @@ begin
   res.G := TAlphaColorRec(AlphaColor).G;
   res.B := TAlphaColorRec(AlphaColor).B;
   Result := res.Color;
-{$IF Defined(ANDROID) or Defined(MACOS) or Defined(MACOSX)}
+{$IFDEF ANDROID}
   Result := SwapRedBlue(Result);
-{$IFEND}
+{$ENDIF}
 end;
 
 procedure CopyImage32ToFmxBitmap(AImage32: TImage32; ABitmap: TBitmap);
