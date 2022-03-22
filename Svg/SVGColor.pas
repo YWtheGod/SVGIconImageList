@@ -44,7 +44,7 @@ implementation
 uses
   System.SysUtils
   , System.UIConsts
-  , Vcl.Graphics
+//  , Vcl.Graphics
   , SVGTypes
   ;
 {$IF CompilerVersion < 29}

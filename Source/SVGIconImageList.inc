@@ -147,8 +147,8 @@
 
 //Prefer Engine Direct2D by Kiriakos Vlahos
 //if supported by Windows Platform (from Windows Creators update)
-{.$DEFINE PreferNativeSvgSupport}
-{.$DEFINE GPUSupport}
+{$DEFINE PreferNativeSvgSupport}
+{$DEFINE GPUSupport}
 {$IFDEF PreferNativeSvgSupport}
   // Throw an exception if the SVG contains text elements or class attributes
   // which are not supported by Windows SVG. Since it costs some performance,

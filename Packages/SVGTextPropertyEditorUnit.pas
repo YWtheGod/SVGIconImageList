@@ -27,7 +27,7 @@ unit SVGTextPropertyEditorUnit;
 
 interface
 
-{$INCLUDE SVGIconImageList.inc}
+{$INCLUDE ..\Source\SVGIconImageList.inc}
 
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics,
@@ -99,7 +99,7 @@ uses
   , BrandingAPI
   {$IF (CompilerVersion >= 32.0)}, IDETheme.Utils{$IFEND}
 {$ENDIF}
-  , SVG;
+  ;
 
 var
   SavedBounds: TRect = (Left: 0; Top: 0; Right: 0; Bottom: 0);
