@@ -2,8 +2,8 @@ unit Img32;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  3.5                                                             *
-* Date      :  31 October 2021                                                 *
+* Version   :  4.2                                                             *
+* Date      :  11 March 2022                                                   *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2019-2021                                         *
 *                                                                              *
@@ -71,6 +71,46 @@ type
   TArrayOfInteger = array of Integer;
   TArrayOfWord = array of WORD;
   TArrayOfByte = array of Byte;
+
+  TImg32Notification = (inStateChange, inDestroy);
+
+  //A INotifyRecipient receives change notifications though a property
+  //interface from a single NotifySender (eg a Font property).
+  //A NotifySender can send change notificatons to multiple NotifyRecipients
+  //(eg where multiple object use the same font property). NotifyRecipients can
+  //still receive change notificatons from mulitple NotifySenders, but it
+  //must use a separate property for each NotifySender. (Also there's little
+  //benefit in using INotifySender and INotifyRecipient interfaces where there
+  //will only be one receiver - eg scroll - scrolling window.)
+
+  INotifyRecipient = interface
+    ['{95F50C62-D321-46A4-A42C-8E9D0E3149B5}']
+   procedure ReceiveNotification(Sender: TObject; notify: TImg32Notification);
+  end;
+  TRecipients = array of INotifyRecipient;
+
+  INotifySender = interface
+    ['{52072382-8B2F-481D-BE0A-E1C0A216B03E}']
+    procedure AddRecipient(recipient: INotifyRecipient);
+    procedure DeleteRecipient(recipient: INotifyRecipient);
+  end;
+
+  TInterfacedObj = class(TObject, IInterface)
+  public
+    function  _AddRef: Integer; stdcall;
+    function  _Release: Integer; stdcall;
+  {$IFDEF FPC}
+    function QueryInterface(
+      {$IFDEF FPC_HAS_CONSTREF}constref
+      {$ELSE}const
+      {$ENDIF} iid : tguid;out obj) : longint;
+      {$IFNDEF WINDOWS}cdecl
+      {$ELSE}stdcall
+      {$ENDIF};
+  {$ELSE}
+    function  QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
+  {$ENDIF}
+  end;
 
   TImage32 = class;
   TImageFormatClass = class of TImageFormat;
@@ -252,6 +292,7 @@ type
     property Bounds: TRect read GetBounds;
     property IsBlank: Boolean read GetIsBlank;
     property IsEmpty: Boolean read GetIsEmpty;
+    property IsPreMultiplied: Boolean read fIsPremultiplied;
     property MidPoint: TPointD read GetMidPoint;
     property Pixel[x,y: Integer]: TColor32 read GetPixel write SetPixel;
     property Pixels: TArrayOfColor32 read fPixels;
@@ -442,8 +483,7 @@ type
   procedure GetResamplerList(stringList: TStringList);
 
 const
-  angle180 = Pi;
-  angle360 = Pi *2;
+  TwoPi = Pi *2;
   angle0   = 0;
   angle1   = Pi/180;
   angle15  = Pi /12;
@@ -452,22 +492,24 @@ const
   angle60  = angle15 *4;
   angle75  = angle15 *5;
   angle90  = Pi /2;
-  angle105 = angle180 - angle75;
-  angle120 = angle180 - angle60;
-  angle135 = angle180 - angle45;
-  angle150 = angle180 - angle30;
-  angle165 = angle180 - angle15;
-  angle195 = angle180 + angle15;
-  angle210 = angle180 + angle30;
-  angle225 = angle180 + angle45;
-  angle240 = angle180 + angle60;
-  angle255 = angle180 + angle75;
-  angle270 = angle360 - angle90;
-  angle285 = angle360 - angle75;
-  angle300 = angle360 - angle60;
-  angle315 = angle360 - angle45;
-  angle330 = angle360 - angle30;
-  angle345 = angle360 - angle15;
+  angle105 = Pi - angle75;
+  angle120 = Pi - angle60;
+  angle135 = Pi - angle45;
+  angle150 = Pi - angle30;
+  angle165 = Pi - angle15;
+  angle180 = Pi;
+  angle195 = Pi + angle15;
+  angle210 = Pi + angle30;
+  angle225 = Pi + angle45;
+  angle240 = Pi + angle60;
+  angle255 = Pi + angle75;
+  angle270 = TwoPi - angle90;
+  angle285 = TwoPi - angle75;
+  angle300 = TwoPi - angle60;
+  angle315 = TwoPi - angle45;
+  angle330 = TwoPi - angle30;
+  angle345 = TwoPi - angle15;
+  angle360 = TwoPi;
 
 var
   ClockwiseRotationIsAnglePositive: Boolean = true;
@@ -571,7 +613,7 @@ var
   aa: double;
 begin
   angle := FMod(angle, angle360);
-  if angle < -angle180 then angle := angle + angle360
+  if angle < -Angle180 then angle := angle + angle360
   else if angle > angle180 then angle := angle - angle360;
 
   aa := Abs(angle);
@@ -932,14 +974,7 @@ end;
 function Alpha(color: TColor32): TColor32;
 {$IFDEF INLINE} inline; {$ENDIF}
 begin
-  Result := (color and $FF000000);
-end;
-//------------------------------------------------------------------------------
-
-function NoAlpha(color: TColor32): TColor32;
-{$IFDEF INLINE} inline; {$ENDIF}
-begin
-  Result := (color and $FFFFFF);
+  Result := Byte(color shr 24);
 end;
 //------------------------------------------------------------------------------
 
@@ -2069,7 +2104,7 @@ begin
     for i := 0 to Width * Height -1 do
     begin
       //ignore colors with signifcant transparency
-      if (c^ shr 24) > $80 then
+      if GetAlpha(c^)  > $80 then
         allColors[c^ and $FFFFFF] := 1;
       inc(c);
     end;
@@ -2664,14 +2699,13 @@ begin
   c := PARGB(PixelBase);
   for i := 0 to Width * Height -1 do
   begin
-    if c.A > 0 then
+    if (c.A = 0) then c.Color := 0
+    else if (c.A < 255) then
     begin
       c.R  := MulTable[c.R, c.A];
       c.G  := MulTable[c.G, c.A];
       c.B  := MulTable[c.B, c.A];
-    end
-    else
-      c.Color := 0;
+    end;
     inc(c);
   end;
   //nb: no OnChange notify event here
@@ -3169,6 +3203,32 @@ end;
 class function TImageFormat.CanCopyToClipboard: Boolean;
 begin
   Result := false;
+end;
+
+//------------------------------------------------------------------------------
+// TInterfacedObj
+//------------------------------------------------------------------------------
+
+function TInterfacedObj._AddRef: Integer; stdcall;
+begin
+  Result := -1;
+end;
+//------------------------------------------------------------------------------
+
+function TInterfacedObj._Release: Integer; stdcall;
+begin
+  Result := -1;
+end;
+//------------------------------------------------------------------------------
+
+{$IFDEF FPC}
+function TInterfacedObj.QueryInterface({$IFDEF FPC_HAS_CONSTREF}constref{$ELSE}const{$ENDIF} iid : tguid;out obj) : longint;
+{$ELSE}
+function TInterfacedObj.QueryInterface(const IID: TGUID; out Obj): HResult;
+{$ENDIF}
+begin
+  if GetInterface(IID, Obj) then Result := 0
+  else Result := E_NOINTERFACE;
 end;
 
 //------------------------------------------------------------------------------

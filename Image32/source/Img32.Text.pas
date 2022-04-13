@@ -402,7 +402,77 @@ type
     metrics  : TGlyphMetrics;
   end;
 
-  //TGlyphCache: speeds up text rendering by parsing font files only once
+  TTextPageMetrics = record
+    lineCount       : integer;
+    maxLineWidth    : double;
+    wordListOffsets : TArrayOfInteger;
+    justifyDeltas   : TArrayOfDouble;
+    lineWidths      : TArrayOfDouble;
+  end;
+
+  TWordInfoList = class;
+
+  TWordInfo = class
+    index         : integer;
+    aWord         : UnicodeString;
+    width         : double;
+    length        : integer;
+    paths         : TArrayOfPathsD;
+    constructor Create(owner: TWordInfoList; idx: integer);
+  end;
+
+  TFontCache = class;
+
+  //TWordInfoList: A font formatted word list where text is broken into
+  //individual words and stored with their glyph info. This class is very
+  //useful with custom text editors.
+  TWordInfoList = class
+  private
+{$IFDEF XPLAT_GENERICS}
+    fList         : TList<TWordInfo>;
+{$ELSE}
+    fList         : TList;
+{$ENDIF}
+    fSingleLine   : Boolean;
+    //fListUpdates: accommodates many calls to UpdateWordList
+    //by occasionally refreshing glyph outlines.
+    //fListUpdates: integer;
+    fUpdateCount: integer;
+    fOnChanged  : TNotifyEvent;
+    function  GetWord(index: integer): TWordInfo;
+    function GetText: UnicodeString;
+  protected
+    procedure Changed; Virtual;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure BeginUpdate;
+    procedure EndUpdate;
+    procedure ApplyNewFont(font: TFontCache);
+    procedure Clear;
+    function  Count: integer;
+    procedure Edit(font: TFontCache; index: Integer; const newWord: string);
+    procedure Delete(Index: Integer);
+    procedure DeleteRange(startIdx, endIdx: Integer);
+    procedure AddNewline;
+    procedure AddSpace(font: TFontCache); overload;
+    procedure AddSpace(spaceWidth: double); overload;
+    procedure AddWord(font: TFontCache;
+      const word: UnicodeString; underlineIdx: integer = 0);
+    procedure InsertNewline(index: integer);
+    procedure InsertSpace(font: TFontCache; index: integer); overload;
+    procedure InsertSpace(spaceWidth: double; index: integer); overload;
+    procedure InsertWord(font: TFontCache; index: integer;
+      const word: UnicodeString; underlineIdx: integer = 0);
+    procedure SetText(const text: UnicodeString;
+      font: TFontCache; underlineIdx: integer = 0);
+    property ForceSingleLine: Boolean read fSingleLine write fSingleLine;
+    property WordInfo[index: integer]: TWordInfo read GetWord; default;
+    property Text: UnicodeString read GetText;
+    property OnChanged: TNotifyEvent read fOnChanged write fOnChanged;
+  end;
+
+  //TFontCache: speeds up text rendering by parsing font files only once
   //for each accessed character. It can also scale glyphs to a specified
   //font height and invert them too (which is necessary on Windows PCs).
   TGlyphCache = class(TNotifyRecipient)
@@ -475,11 +545,17 @@ type
     property StrikeOut: Boolean read fStrikeOut write fStrikeOut;
   end;
 
-  function DrawText(image: TImage32;
-    x, y: double;
-    const text: UnicodeString;
-    glyphCache: TGlyphCache;
-    textColor: TColor32 = clBlack32): double; overload;
+  //Given a wordList and a specified maximum line width (in pixels),
+  //get both the line count and the offsets to the words in wordlist
+  //that will start each line.
+  function GetPageMetrics(lineWidth: double;
+    wordList: TWordInfoList): TTextPageMetrics;
+
+  function DrawText(image: TImage32; x, y: double;
+    const text: UnicodeString; font: TFontCache;
+    textColor: TColor32 = clBlack32;
+    useClearType: Boolean = false;
+    clearTypeBgColor: TColor32 = clWhite32): double; overload;
 
   function DrawText(image: TImage32;
     x, y: double;
@@ -491,8 +567,9 @@ type
     const rec: TRect;
     const text: UnicodeString;
     textAlign: TTextAlign; textAlignV: TTextVAlign;
-    glyphCache: TGlyphCache; textColor: TColor32 = clBlack32;
-    useClearType: Boolean = false): TPointD; overload;
+    font: TFontCache; textColor: TColor32 = clBlack32;
+    useClearType: Boolean = false;
+    clearTypeBgColor: TColor32 = clWhite32); overload;
 
   function DrawAngledText(image: TImage32;
   x, y: double; angleRadians: double;
@@ -2225,7 +2302,101 @@ function TGlyphCache.GetTextGlyphs(x, y: double;
 var
   dummy: double;
 begin
-  Result := GetTextGlyphs(x, y, text, dummy);
+  Result := GetTextOutline(x, y, text, dummy);
+end;
+//------------------------------------------------------------------------------
+
+function TFontCache.GetTextOutline(const rec: TRect;
+  wordList: TWordInfoList; tpm: TTextPageMetrics;
+  textAlign: TTextAlign; startLine, endLine: integer): TPathsD;
+var
+  i,j, a,b: integer;
+  x,y,lh, spcDx, lineWidth: double;
+  pp: TPathsD;
+  app: TArrayOfPathsD;
+begin
+  Result := nil;
+  if not Assigned(wordList) or (wordList.Count = 0) then Exit;
+
+  lh := GetLineHeight;
+  y := rec.Top;
+
+  if startLine < 0 then startLine := 0;
+  if (endLine < 0) or (endLine >= tpm.lineCount) then
+    endLine := tpm.lineCount -1;
+
+  for i := startLine to endLine do
+  begin
+    a := tpm.wordListOffsets[i];
+    b := tpm.wordListOffsets[i+1] -1;
+    if textAlign = taJustify then
+      spcDx := tpm.justifyDeltas[i] else
+      spcDx := 0;
+    lineWidth := tpm.lineWidths[i];
+
+    //ingore trailing spaces
+    while (b >= a) do
+      with wordList.GetWord(b) do
+        if aWord <= #32 then
+          dec(b) else
+          break;
+
+    case textAlign of
+      taRight   : x := rec.Left + (RectWidth(rec) - lineWidth);
+      taCenter  : x := rec.Left + (RectWidth(rec) - lineWidth)/2;
+      else        x := rec.Left;
+    end;
+
+    for j := a to b do
+      with wordList.GetWord(j) do
+        if aWord > #32 then
+        begin
+          app := OffsetPath(paths, x, y + Ascent);
+          pp := MergePathsArray(app);
+          AppendPath(Result, pp);
+          x := x + width;
+        end
+        else
+          x := x + width + spcDx;
+    y := y + lh;
+  end;
+end;
+//------------------------------------------------------------------------------
+
+function TFontCache.GetTextOutline(const rec: TRect;
+  const text: UnicodeString; textAlign: TTextAlign; textAlignV: TTextVAlign;
+  underlineIdx: integer): TPathsD;
+var
+  y,dy    : double;
+  wl      : TWordInfoList;
+  tpm     : TTextPageMetrics;
+begin
+  Result := nil;
+
+  wl := TWordInfoList.Create;
+  try
+    wl.SetText(text, Self, underlineIdx);
+    tpm := GetPageMetrics(RectWidth(rec), wl);
+    Result := GetTextOutline(rec, wl, tpm, textAlign, 0, -1);
+
+    case textAlignV of
+      tvaMiddle:
+        begin
+          y := GetLineHeight * tpm.lineCount;
+          dy := (RectHeight(rec) -y) /2 -1;
+        end;
+      tvaBottom:
+        begin
+          y := GetLineHeight * tpm.lineCount;
+          dy := (RectHeight(rec) -y);
+        end;
+      else
+        Exit;
+    end;
+    Result := OffsetPath(Result, 0, dy);
+  finally
+    wl.Free;
+  end;
 end;
 //------------------------------------------------------------------------------
 
@@ -2700,14 +2871,20 @@ end;
 //------------------------------------------------------------------------------
 
 function DrawText(image: TImage32; x, y: double; const text: UnicodeString;
-  glyphCache: TGlyphCache; textColor: TColor32 = clBlack32): double;
+  font: TFontCache; textColor: TColor32 = clBlack32;
+    useClearType: Boolean = false;
+    clearTypeBgColor: TColor32 = clWhite32): double;
 var
   glyphs: TPathsD;
 begin
   Result := 0;
-  if not assigned(glyphCache) or not glyphCache.IsValidFont then Exit;
-  glyphs := glyphCache.GetTextGlyphs(x,y, text, Result);
-  DrawPolygon(image, glyphs, frNonZero, textColor);
+  if (text = '') or not assigned(font) or not font.IsValidFont then Exit;
+  glyphs := font.GetTextOutline(x,y, text, Result);
+  if useClearType then
+    DrawPolygon_ClearType(image, glyphs,
+      frNonZero, textColor, clearTypeBgColor)
+  else
+    DrawPolygon(image, glyphs, frNonZero, textColor);
 end;
 //------------------------------------------------------------------------------
 
@@ -2723,9 +2900,10 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function DrawText(image: TImage32; const rec: TRect; const text: UnicodeString;
-  textAlign: TTextAlign; textAlignV: TTextVAlign; glyphCache: TGlyphCache;
-  textColor: TColor32 = clBlack32; useClearType: Boolean = false): TPointD;
+procedure DrawText(image: TImage32; const rec: TRect; const text: UnicodeString;
+  textAlign: TTextAlign; textAlignV: TTextVAlign; font: TFontCache;
+  textColor: TColor32 = clBlack32; useClearType: Boolean = false;
+  clearTypeBgColor: TColor32 = clWhite32);
 var
   glyphs: TPathsD;
   dummy: integer; //assumes all characters will be drawn
@@ -2735,7 +2913,8 @@ begin
   glyphs := glyphCache.GetTextGlyphs(rec, text,
     textAlign, textAlignV, dummy, Result);
   if useClearType then
-    DrawPolygon_ClearType(image, glyphs, frNonZero, textColor) else
+    DrawPolygon_ClearType(image, glyphs, frNonZero, textColor, clearTypeBgColor)
+  else
     DrawPolygon(image, glyphs, frNonZero, textColor);
 end;
 //------------------------------------------------------------------------------
@@ -2908,6 +3087,435 @@ begin
     tmpPaths := OffsetPath(tmpPaths, pt.X, pt.Y);
     AppendPath(Result, tmpPaths);
   end;
+end;
+
+//------------------------------------------------------------------------------
+// TWordInfo
+//------------------------------------------------------------------------------
+
+constructor TWordInfo.Create(owner: TWordInfoList; idx: integer);
+begin
+  index := idx;
+end;
+
+//------------------------------------------------------------------------------
+// TWordInfoList
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.SetText(const text: UnicodeString;
+  font: TFontCache; underlineIdx: integer);
+var
+  len: integer;
+  spaceW: double;
+  p, p2, pEnd: PWideChar;
+  s: UnicodeString;
+begin
+  if not Assigned(font) then Exit;
+
+  BeginUpdate;
+  try
+    Clear;
+    spaceW := font.GetSpaceWidth;
+    p := PWideChar(text);
+    pEnd := p;
+    Inc(pEnd, Length(text));
+    while p < pEnd do
+    begin
+      if (p^ <= #32) then
+      begin
+        if (p^ = #32) then AddSpace(spaceW)
+        else if (p^ = #10) then AddNewline;
+
+        inc(p);
+        dec(underlineIdx);
+      end else
+      begin
+        p2 := p;
+        inc(p);
+        while (p < pEnd) and (p^ > #32) do inc(p);
+        len := p - p2;
+        SetLength(s, len);
+        Move(p2^, s[1], len * SizeOf(Char));
+        AddWord(font, s, underlineIdx);
+        dec(underlineIdx, len);
+      end;
+    end;
+  finally
+    EndUpdate;
+  end;
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.ApplyNewFont(font: TFontCache);
+var
+  i: integer;
+  spaceW, dummy: double;
+  wi: TWordInfo;
+begin
+  if not Assigned(font) then Exit;
+  spaceW := font.GetSpaceWidth;
+  BeginUpdate;
+  try
+    for i := 0 to Count -1 do
+    begin
+      wi := GetWord(i);
+      if wi.aWord <= #32 then
+      begin
+        if wi.aWord = #32 then wi.width := spaceW
+        else wi.width := 0;
+      end else
+      begin
+        font.GetTextOutlineInternal(0,0, wi.aWord, wi.paths, dummy);
+        wi.width := font.GetTextWidth(wi.aWord);
+      end;
+    end;
+  finally
+    EndUpdate;
+  end;
+end;
+//------------------------------------------------------------------------------
+
+constructor TWordInfoList.Create;
+begin
+  inherited;
+{$IFDEF XPLAT_GENERICS}
+  fList := TList<TWordInfo>.Create;
+{$ELSE}
+  fList := TList.Create;
+{$ENDIF}
+end;
+//------------------------------------------------------------------------------
+
+destructor TWordInfoList.Destroy;
+begin
+  fOnChanged := nil;
+  Clear;
+  fList.Free;
+  inherited;
+end;
+//------------------------------------------------------------------------------
+
+function TWordInfoList.GetWord(index: integer): TWordInfo;
+begin
+  if (index < 0) or (index >= fList.Count) then
+    raise Exception.Create(rsWordListRangeError);
+  Result :=  TWordInfo(fList.Items[index]);
+end;
+//------------------------------------------------------------------------------
+
+function TWordInfoList.GetText: UnicodeString;
+var
+  i: integer;
+begin
+  Result := '';
+  for i := 0 to Count -1 do
+    Result := Result + TWordInfo(fList.Items[i]).aWord;
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.AddNewline;
+begin
+  InsertNewline(MaxInt);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.AddSpace(font: TFontCache);
+begin
+  InsertSpace(font, MaxInt);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.AddSpace(spaceWidth: double);
+begin
+  InsertSpace(spaceWidth, MaxInt);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.AddWord(font: TFontCache;
+  const word: UnicodeString; underlineIdx: integer);
+begin
+  InsertWord(font, MaxInt, word, underlineIdx);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.InsertNewline(index: integer);
+var
+  i, cnt: integer;
+  newWord : TWordInfo;
+begin
+  cnt := fList.Count;
+  if (index > cnt) then index := cnt
+  else if (index < 0) then index := 0;
+
+  newWord := TWordInfo.Create(self, index);
+  newWord.aWord  := #10;
+  newWord.width := 0;
+  newWord.length := 1;
+  newWord.paths := nil;
+  fList.Insert(index, newWord);
+
+  //reindex
+  if index < cnt then
+    for i := index +1 to cnt do
+      TWordInfo(fList[i]).index := i;
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.InsertSpace(font: TFontCache; index: integer);
+var
+  width: double;
+begin
+  if not Assigned(font) or not font.IsValidFont then
+    raise Exception.Create(rsWordListFontError);
+  width := font.GetCharInfo(32).metrics.hmtx.advanceWidth * font.fScale;
+  InsertSpace(width, index);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.InsertSpace(spaceWidth: double; index: integer);
+var
+  i, cnt: integer;
+  newWord : TWordInfo;
+begin
+  cnt := fList.Count;
+  if (index > cnt) then index := cnt
+  else if (index < 0) then index := 0;
+
+  newWord := TWordInfo.Create(self, index);
+  newWord.aWord  := #32;
+  newWord.width := spaceWidth;
+  newWord.length := 1;
+  newWord.paths := nil;
+  fList.Insert(index, newWord);
+
+  //reindex
+  if index < cnt then
+    for i := index +1 to cnt do
+      TWordInfo(fList[i]).index := i;
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.InsertWord(font: TFontCache;
+  index: integer; const word: UnicodeString; underlineIdx: integer);
+var
+  i, cnt: integer;
+  width: double;
+  newWord : TWordInfo;
+  ap: TArrayOfPathsD;
+begin
+  if not Assigned(font) or not font.IsValidFont then
+    raise Exception.Create(rsWordListFontError);
+
+  font.GetTextOutlineInternal(0,0, word, ap, width, underlineIdx);
+  cnt := fList.Count;
+  if (index > cnt) then index := cnt
+  else if (index < 0) then index := 0;
+
+  newWord := TWordInfo.Create(self, index);
+  newWord.aWord  := word;
+  newWord.width := width;
+  newWord.length := Length(word);
+  newWord.paths := ap;
+  fList.Insert(index, newWord);
+
+  //reindex
+  if index < cnt then
+    for i := index +1 to cnt do
+      TWordInfo(fList[i]).index := i;
+end;
+//------------------------------------------------------------------------------
+
+function TWordInfoList.Count: integer;
+begin
+  Result := fList.Count;
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.Clear;
+var
+  i: integer;
+begin
+  for i := 0 to fList.Count -1 do
+      TWordInfo(fList.Items[i]).Free;
+  fList.Clear;
+  if Assigned(fOnChanged) then fOnChanged(Self);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.BeginUpdate;
+begin
+  inc(fUpdateCount);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.EndUpdate;
+begin
+  dec(fUpdateCount);
+  if (fUpdateCount = 0) then Changed;
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.Changed;
+begin
+  if Assigned(fOnChanged) then fOnChanged(Self);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.Delete(Index: Integer);
+begin
+  if (index < 0) or (index >= fList.Count) then
+    raise Exception.Create(rsWordListRangeError);
+  TWordInfo(fList.Items[index]).Free;
+  fList.Delete(index);
+  if Assigned(fOnChanged) then fOnChanged(Self);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.DeleteRange(startIdx, endIdx: Integer);
+var
+  i, cnt, cnt2: Integer;
+begin
+  if (startIdx < 0) or (endIdx >= fList.Count) then
+    raise Exception.Create(rsWordListRangeError);
+  for i := startIdx to endIdx do
+    TWordInfo(fList.Items[i]).Free;
+
+  //fList.DeleteRange(startIdx, endIdx - startIdx +1);
+  cnt := endIdx - startIdx +1;
+  cnt2 := fList.Count - cnt;
+  for i := startIdx to cnt2 -1 do
+    fList[i] := fList[i +cnt];
+  fList.Count := cnt2;
+
+  if Assigned(fOnChanged) then fOnChanged(Self);
+end;
+//------------------------------------------------------------------------------
+
+procedure TWordInfoList.Edit(font: TFontCache;
+  index: Integer; const newWord: string);
+var
+  len: integer;
+  dummy: double;
+begin
+  if (index < 0) or (index >= fList.Count) then
+    raise Exception.Create(rsWordListRangeError);
+  len := system.Length(newWord);
+  if len = 0 then
+    Delete(index)
+  else if Assigned(font) then
+    with TWordInfo(fList.Items[index]) do
+    begin
+      aWord := newWord;
+      length := 1;
+      while (length < len) and (aWord[length+1] > #32) do
+        inc(length);
+      if length < len then SetLength(aWord, length);
+      width := font.GetTextWidth(aWord);
+      font.GetTextOutlineInternal(0,0,aWord, paths, dummy);
+      if Assigned(fOnChanged) then fOnChanged(Self);
+    end;
+end;
+//------------------------------------------------------------------------------
+
+function GetPageMetrics(lineWidth: double; wordList: TWordInfoList): TTextPageMetrics;
+var
+  arrayCnt, arrayCap: integer;
+
+  procedure CalcLineWidthsAndJustify(idx: integer);
+  var
+    i,j,k, spcCnt: integer;
+    x: double;
+    forceLeftAlign: Boolean;
+  begin
+    j := Result.wordListOffsets[idx] -1;
+    if j < 0 then Exit;
+
+    forceLeftAlign := wordList.GetWord(j).aWord = #10;
+    i := Result.wordListOffsets[idx -1];
+
+    while (j > i) and (wordList.GetWord(j).aWord = #32) do
+      dec(j);
+
+    spcCnt := 0;
+    x := 0;
+    for k := i to j do
+      with wordList.GetWord(k) do
+      begin
+        if aWord = #32 then inc(spcCnt);
+        x := x + width;
+      end;
+    Result.lineWidths[idx-1] := x;
+    if not forceLeftAlign and (spcCnt > 0) then
+      Result.justifyDeltas[idx-1] := (Result.maxLineWidth - x)/spcCnt;
+  end;
+
+  procedure AddLine(i: integer);
+  begin
+    if arrayCnt = arrayCap then
+    begin
+      inc(arrayCap, 16);
+      SetLength(Result.wordListOffsets, arrayCap);
+      SetLength(Result.justifyDeltas, arrayCap);
+      SetLength(Result.lineWidths, arrayCap);
+    end;
+    inc(Result.lineCount);
+    Result.wordListOffsets[arrayCnt] := i;
+    Result.justifyDeltas[arrayCnt] := 0.0;
+    if (arrayCnt > 0) then
+      CalcLineWidthsAndJustify(arrayCnt);
+    inc(arrayCnt);
+  end;
+
+var
+  i,j, cnt: integer;
+  x: double;
+  wi: TWordInfo;
+begin
+  Result.lineCount := 0;
+  Result.maxLineWidth := lineWidth;
+  Result.wordListOffsets := nil;
+  arrayCnt := 0; arrayCap := 0;
+  if not Assigned(wordList) or (wordList.Count = 0) then Exit;
+
+  i := 0; j := 0;
+  cnt := wordList.Count;
+  x := 0;
+
+  while (i < cnt) do
+  begin
+    wi := wordList.GetWord(i);
+    if (i = j) and (wi.aWord = #32) then
+    begin
+      inc(i); inc(j); Continue;
+    end;
+
+    if (wi.aWord = #10) then
+    begin
+      AddLine(j);
+      inc(i); j := i; x := 0;
+    end
+    else if (x + wi.width > lineWidth) then
+    begin
+      if j = i then Break; //word is too long for line. Todo: ??hiphenate
+      AddLine(j);
+      j := i; x := 0;
+    end else
+    begin
+      x := x + wi.width;
+      inc(i);
+    end;
+  end;
+
+  if (j < cnt)then AddLine(j); //add end short line
+  AddLine(cnt);
+  dec(Result.lineCount);
+  SetLength(Result.wordListOffsets, arrayCnt);
+  SetLength(Result.justifyDeltas, arrayCnt);
+  SetLength(Result.lineWidths, arrayCnt);
+  //make sure the 'real' last line isn't justified.
+  Result.justifyDeltas[arrayCnt-2] := 0;
+  //nb: the 'lineWidths' for the very last line may be longer
+  //than maxLineWidth when a word's width exceeds 'maxLineWidth
 end;
 
 //------------------------------------------------------------------------------
